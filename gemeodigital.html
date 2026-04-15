@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gémeo Digital Preditivo — TK-2026-IND</title>
+    <meta name="description" content="Painel de Controlo Industrial: Sistema de Arrefecimento com Gémeo Digital Preditivo">
+
+    <!-- Fonts: Inter + Fira Code para estética moderna e agradável -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        display: ['Inter', 'sans-serif'],
+                        mono: ['Fira Code', 'monospace'],
+                    },
+                    colors: {
+                        base:        '#F8FAFC', /* Slate 50 */
+                        surface:     '#FFFFFF',
+                        panel:       '#FFFFFF',
+                        border:      '#E2E8F0', /* Slate 200 */
+                        borderHi:    '#CBD5E1', /* Slate 300 */
+                        cyan:        '#0284C7', /* Sky 600 */
+                        cyanDim:     '#E0F2FE', /* Sky 100 */
+                        violet:      '#6366F1', /* Indigo 500 */
+                        violetDim:   '#EEF2FF', /* Indigo 50 */
+                        emerald:     '#10B981', /* Emerald 500 */
+                        amber:       '#F59E0B', /* Amber 500 */
+                        red:         '#EF4444', /* Red 500 */
+                        dim:         '#64748B', /* Slate 500 */
+                        muted:       '#94A3B8', /* Slate 400 */
+                        text:        '#0F172A', /* Slate 900 */
+                    },
+                }
+            }
+        }
+    </script>
+
+    <style>
+        *, *::before, *::after { box-sizing: border-box; }
+
+        :root {
+            --cyan:    #0284C7;
+            --violet:  #6366F1;
+            --emerald: #10B981;
+            --amber:   #F59E0B;
+            --red:     #EF4444;
+            --panel:   #FFFFFF;
+            --border:  #E2E8F0;
+            --dim:     #64748B;
+        }
+
+        body {
+            background-color: #F8FAFC;
+            color: #0F172A;
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* ─── FUNDO COM GRID INDUSTRIAL CLARO ─── */
+        .bg-grid {
+            background-image:
+                linear-gradient(rgba(2, 132, 199, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(2, 132, 199, 0.05) 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+
+        /* ─── PAINÉIS CLAROS COM SOMBRAS SUAVES ─── */
+        .glass {
+            background: rgba(255, 255, 255, 0.85);
+            border: 1px solid #E2E8F0;
+            contain: layout style;
+            -webkit-backdrop-filter: blur(12px);
+            backdrop-filter: blur(12px);
+            box-shadow: 0 4px 20px 0 rgba(0,0,0,0.03);
+            transition: box-shadow 0.3s ease, border-color 0.3s ease;
+            will-change: transform;
+        }
+        .glass:hover { border-color: #CBD5E1; box-shadow: 0 6px 24px 0 rgba(0,0,0,0.06); }
+
+        .glass-hi {
+            background: rgba(255, 255, 255, 0.95);
+            border: 1px solid #CBD5E1;
+            -webkit-backdrop-filter: blur(16px);
+            backdrop-filter: blur(16px);
+            box-shadow: 0 8px 30px 0 rgba(0,0,0,0.05);
+        }
+
+        /* ─── BARRAS DE DESTAQUE SUPERIOR ─── */
+        .accent-top-cyan::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+            background: linear-gradient(90deg, var(--cyan), transparent); border-radius: inherit;
+        }
+        .accent-top-violet::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+            background: linear-gradient(90deg, var(--violet), transparent); border-radius: inherit;
+        }
+
+        /* ─── TRANSIÇÃO DE VALOR NUMÉRICO SUAVE ─── */
+        .value-display {
+            display: inline-block;
+            transition: transform 0.15s ease-out, opacity 0.15s ease-out;
+        }
+        .value-display.updating {
+            transform: translateY(-4px);
+            opacity: 0.3;
+        }
+
+        /* ─── RÁDIO BUTTONS CUSTOMIZADOS (TEMA CLARO) ─── */
+        .mode-option input[type="radio"] { position: absolute; opacity: 0; width: 0; height: 0; }
+        .mode-option label {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px;
+            cursor: pointer; transition: all 0.25s cubic-bezier(0.4,0,0.2,1);
+            background: #FFFFFF; user-select: none; color: #334155;
+        }
+        .mode-option label:hover { background: #F1F5F9; border-color: #94A3B8; }
+        
+        .mode-option input:checked ~ label { background: #E0F2FE; border-color: var(--cyan); color: #0F172A; }
+        .mode-option.violet input:checked ~ label { background: #EEF2FF; border-color: var(--violet); color: #0F172A; }
+        .mode-option.red input:checked ~ label { background: #FEF2F2; border-color: var(--red); color: #0F172A; }
+
+        .mode-led {
+            width: 8px; height: 8px; border-radius: 50%; background: #CBD5E1;
+            transition: background 0.3s, box-shadow 0.3s; flex-shrink: 0;
+        }
+        .mode-option input:checked ~ label .mode-led { background: var(--cyan); box-shadow: 0 0 8px rgba(2, 132, 199, 0.5); }
+        .mode-option.violet input:checked ~ label .mode-led { background: var(--violet); box-shadow: 0 0 8px rgba(99, 102, 241, 0.5); }
+        .mode-option.red input:checked ~ label .mode-led { background: var(--red); box-shadow: 0 0 8px rgba(239, 68, 68, 0.5); }
+
+        /* ─── BARRAS DE PROGRESSO INDUSTRIAIS (RUL) ─── */
+        .rul-bar-track {
+            height: 8px; background: #E2E8F0; border-radius: 4px;
+            overflow: hidden; position: relative; box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
+        }
+        .rul-bar-fill {
+            height: 100%; border-radius: 4px;
+            transition: width 0.3s cubic-bezier(0.4,0,0.2,1), background-color 0.4s ease;
+        }
+        .rul-bar-predicted {
+            height: 100%; position: absolute; right: 0; top: 0;
+            background-image: repeating-linear-gradient(
+                -45deg, transparent, transparent 4px, rgba(0,0,0,0.05) 4px, rgba(0,0,0,0.05) 8px
+            );
+            animation: stripe-scroll 1.5s linear infinite;
+        }
+        @keyframes stripe-scroll { 0% { background-position: 0 0; } 100% { background-position: 28px 0; } }
+
+        /* ─── ANIMAÇÕES E EFEITOS ─── */
+        .fan-spinning { animation: fan-spin 0.5s linear infinite; }
+        @keyframes fan-spin { to { transform: rotate(360deg); } }
+
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 4px rgba(16, 185, 129, 0.4); opacity: 1; }
+            50% { box-shadow: 0 0 12px rgba(16, 185, 129, 0.8); opacity: 0.7; }
+        }
+        .online-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: var(--emerald); animation: pulse-glow 2s ease-in-out infinite;
+        }
+
+        /* ─── COMPONENTES UI ─── */
+        .btn-danger {
+            background: #FEF2F2; border: 1px solid #FECACA;
+            color: var(--red); font-size: 10px; font-weight: 700; letter-spacing: 0.05em;
+            padding: 4px 10px; border-radius: 4px; cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-danger:hover { background: #FEE2E2; border-color: #FCA5A5; box-shadow: 0 2px 8px rgba(239, 68, 68, 0.15); }
+        .btn-danger:active { transform: scale(0.97); }
+
+        .sp-btn {
+            width: 36px; height: 36px; border-radius: 6px; background: #F1F5F9;
+            border: 1px solid #CBD5E1; color: #64748B; font-size: 16px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s;
+        }
+        .sp-btn:hover {
+            background: #E0F2FE; color: var(--cyan);
+            border-color: #BAE6FD; box-shadow: 0 2px 8px rgba(2, 132, 199, 0.1);
+        }
+        .sp-btn:active { transform: scale(0.94); }
+
+        .actuator-card {
+            border: 1px solid #E2E8F0; border-radius: 8px; padding: 10px 14px;
+            display: flex; align-items: center; gap: 12px; background: #FFFFFF;
+            transition: all 0.4s ease;
+        }
+        .actuator-card.active-coil {
+            background: #E0F2FE; border-color: #7DD3FC; box-shadow: 0 4px 12px rgba(2, 132, 199, 0.1);
+        }
+        .actuator-card.active-comp {
+            background: #EEF2FF; border-color: #A5B4FC; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.1);
+        }
+
+        .status-tag { font-size: 9px; font-weight: 700; letter-spacing: 0.12em; padding: 2px 7px; border-radius: 3px; }
+        .tag-cyan  { background: #E0F2FE;  color: var(--cyan);    border: 1px solid #BAE6FD; }
+        .tag-green { background: #D1FAE5;  color: var(--emerald); border: 1px solid #A7F3D0; }
+        .tag-amber { background: #FEF3C7;  color: var(--amber);   border: 1px solid #FDE68A; }
+        .tag-red   { background: #FEE2E2;  color: var(--red);     border: 1px solid #FECACA; }
+
+        .twin-badge {
+            background: #EEF2FF; border: 1px solid #C7D2FE;
+            color: var(--violet); font-size: 10px; font-weight: 700; letter-spacing: 0.15em;
+            padding: 3px 8px; border-radius: 4px; box-shadow: 0 2px 4px rgba(99, 102, 241, 0.1);
+        }
+
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #F1F5F9; }
+        ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
+    </style>
+</head>
+
+<body class="min-h-screen bg-grid p-3 md:p-4 xl:p-5 flex flex-col gap-4" role="main">
+
+    <!-- HEADER -->
+    <header class="glass-hi rounded-xl p-4 flex flex-wrap items-center justify-between gap-4 relative overflow-hidden">
+        <div class="flex items-center gap-4 z-10">
+            <div class="relative w-12 h-12 flex items-center justify-center rounded-lg border border-indigo-200 bg-indigo-50 shadow-sm">
+                <i class="fa-solid fa-layer-group text-2xl text-violet"></i>
+            </div>
+            <div>
+                <div class="flex items-center gap-3 flex-wrap">
+                    <h1 class="text-xl md:text-2xl font-display font-bold text-slate-900 tracking-widest uppercase leading-none">
+                        Sistema de Arrefecimento
+                    </h1>
+                    <span class="twin-badge">GÉMEO DIGITAL</span>
+                </div>
+                <div class="flex gap-4 text-xs text-dim mt-2 font-mono font-semibold">
+                    <span>ID: <span class="text-slate-800">TK-2026-IND</span></span>
+                    <span class="border-l border-border pl-4 hidden sm:inline">FW: <span class="text-slate-800">V2.4.1</span></span>
+                    <span class="border-l border-border pl-4">SIM: <span class="text-cyan font-bold" id="header-mode">HÍBRIDO</span></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-5 sm:gap-8 z-10">
+            <div class="flex gap-5 sm:gap-6 border-r border-border pr-5 sm:pr-8 hidden md:flex">
+                <div class="flex flex-col">
+                    <span class="text-[10px] text-dim uppercase tracking-widest mb-1 font-bold">Latência</span>
+                    <span class="font-mono text-sm text-slate-900 font-bold"><span id="latency-val">12</span><span class="text-dim text-xs font-normal">ms</span></span>
+                </div>
+                <div class="flex flex-col">
+                    <span class="text-[10px] text-dim uppercase tracking-widest mb-1 font-bold">Sync</span>
+                    <div class="flex items-center gap-2 mt-0.5">
+                        <div class="online-dot"></div>
+                        <span class="font-mono text-[11px] text-emerald font-bold tracking-wider">ONLINE</span>
+                    </div>
+                </div>
+            </div>
+            <div class="text-right min-w-[110px]">
+                <div class="text-3xl font-display font-bold tracking-wider text-cyan leading-none" id="clock">00:00:00</div>
+                <div class="text-[10px] text-dim font-mono uppercase tracking-wider mt-1.5 font-bold" id="date">YYYY-MM-DD</div>
+            </div>
+        </div>
+    </header>
+
+    <!-- GRELHA PRINCIPAL -->
+    <main class="grid grid-cols-1 xl:grid-cols-12 gap-5 flex-grow">
+
+        <!-- COLUNA ESQUERDA: Controlo -->
+        <aside class="xl:col-span-3 flex flex-col gap-5">
+            
+            <!-- Setpoint -->
+            <div class="glass rounded-xl p-6 relative overflow-hidden accent-top-cyan">
+                <p class="text-[10px] text-dim font-mono uppercase tracking-widest mb-4 font-bold">Ponto de Ajuste (Setpoint)</p>
+                <div class="flex items-center justify-between">
+                    <button class="sp-btn" onclick="app.changeSetpoint(-0.5)"><i class="fa-solid fa-minus"></i></button>
+                    <div class="flex flex-col items-center">
+                        <div class="text-6xl font-display font-black text-slate-900 tracking-tight leading-none value-display" id="setpoint-display">15.0</div>
+                        <span class="text-[10px] font-mono text-cyan mt-2 tracking-widest font-bold">GRAUS CELSIUS</span>
+                    </div>
+                    <button class="sp-btn" onclick="app.changeSetpoint(0.5)"><i class="fa-solid fa-plus"></i></button>
+                </div>
+            </div>
+
+            <!-- Temperatura Atual -->
+            <div class="glass rounded-xl p-5 flex items-center gap-4">
+                <div class="w-12 h-12 rounded-lg bg-sky-100 border border-sky-200 flex items-center justify-center flex-shrink-0 shadow-sm">
+                    <i class="fa-solid fa-temperature-half text-cyan text-xl"></i>
+                </div>
+                <div class="flex-grow">
+                    <p class="text-[10px] text-dim font-mono uppercase tracking-widest mb-0.5 font-bold">Temp. Real (Tanque)</p>
+                    <div class="flex items-baseline gap-2">
+                        <span class="text-3xl font-display font-black text-slate-900 value-display" id="temp-realtime">25.00</span>
+                        <span class="text-sm font-mono text-dim font-bold">°C</span>
+                    </div>
+                </div>
+                <div id="temp-status-tag" class="status-tag tag-amber">MEDINDO</div>
+            </div>
+
+            <!-- Seletor de Modo -->
+            <div class="glass rounded-xl p-5 flex-grow flex flex-col">
+                <div class="flex justify-between items-center mb-4">
+                    <p class="text-[10px] text-dim font-mono uppercase tracking-widest font-bold">Estratégia de Controlo</p>
+                    <i class="fa-solid fa-microchip text-dim"></i>
+                </div>
+                <div class="flex flex-col gap-2">
+                    <div class="mode-option violet relative">
+                        <input type="radio" name="coolingMode" id="mode-auto" value="auto" checked onchange="app.setMode(this.value)">
+                        <label for="mode-auto">
+                            <div class="flex items-center gap-3">
+                                <i class="fa-solid fa-network-wired text-violet text-sm w-5 text-center"></i>
+                                <span class="text-xs font-display font-bold tracking-wide">Gémeo Híbrido (IA)</span>
+                            </div>
+                            <div class="mode-led"></div>
+                        </label>
+                    </div>
+                    <div class="mode-option relative">
+                        <input type="radio" name="coolingMode" id="mode-coil" value="coil" onchange="app.setMode(this.value)">
+                        <label for="mode-coil">
+                            <div class="flex items-center gap-3">
+                                <i class="fa-solid fa-water text-cyan text-sm w-5 text-center"></i>
+                                <span class="text-xs font-display font-bold tracking-wide">Apenas Serpentina</span>
+                            </div>
+                            <div class="mode-led"></div>
+                        </label>
+                    </div>
+                    <div class="mode-option relative">
+                        <input type="radio" name="coolingMode" id="mode-comp" value="comp" onchange="app.setMode(this.value)">
+                        <label for="mode-comp">
+                            <div class="flex items-center gap-3">
+                                <i class="fa-solid fa-fan text-slate-700 text-sm w-5 text-center"></i>
+                                <span class="text-xs font-display font-bold tracking-wide">Apenas Compressor</span>
+                            </div>
+                            <div class="mode-led"></div>
+                        </label>
+                    </div>
+                    <div class="mode-option red relative">
+                        <input type="radio" name="coolingMode" id="mode-both" value="both" onchange="app.setMode(this.value)">
+                        <label for="mode-both">
+                            <div class="flex items-center gap-3">
+                                <i class="fa-solid fa-triangle-exclamation text-red text-sm w-5 text-center"></i>
+                                <span class="text-xs font-display font-bold tracking-wide">Sobrecarga (Ambos)</span>
+                            </div>
+                            <div class="mode-led"></div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- COLUNA PRINCIPAL: Gráfico e Diagnósticos -->
+        <section class="xl:col-span-9 flex flex-col gap-5">
+            
+            <!-- Gráfico de Telemetria -->
+            <div class="glass-hi rounded-xl p-6 flex-grow flex flex-col relative overflow-hidden">
+                <div class="flex flex-wrap justify-between items-start gap-4 mb-4 pb-4 border-b border-border">
+                    <div>
+                        <h2 class="text-lg font-display font-bold text-slate-900 tracking-wide mb-2">Telemetria Térmica & Projeção</h2>
+                        <div class="flex gap-5 text-[10px] font-mono tracking-widest font-bold">
+                            <span class="flex items-center gap-2 text-cyan"><span class="w-4 h-1 bg-cyan inline-block rounded"></span> TEMPO REAL</span>
+                            <span class="flex items-center gap-2 text-violet">
+                                <span class="w-4 h-1 bg-violet inline-block rounded" style="background:repeating-linear-gradient(90deg,#6366F1 0 3px,transparent 3px 6px);"></span> PROJEÇÃO IA
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <!-- Atuadores -->
+                    <div class="flex gap-3 flex-wrap">
+                        <div class="actuator-card" id="actuator-coil">
+                            <div class="flex flex-col">
+                                <span class="text-[9px] text-dim font-mono tracking-wider font-bold">VÁLVULA SERPENTINA</span>
+                                <span class="text-sm font-mono font-bold text-slate-500 mt-0.5" id="txt-coil">FECHADA</span>
+                            </div>
+                            <i class="fa-solid fa-droplet text-2xl text-slate-300 transition-colors duration-300" id="icon-coil"></i>
+                        </div>
+                        <div class="actuator-card" id="actuator-comp">
+                            <div class="flex flex-col">
+                                <span class="text-[9px] text-dim font-mono tracking-wider font-bold">COMPRESSOR PRINC.</span>
+                                <span class="text-sm font-mono font-bold text-slate-500 mt-0.5" id="txt-comp">STANDBY</span>
+                            </div>
+                            <i class="fa-solid fa-fan text-2xl text-slate-300 transition-all duration-300" id="icon-comp"></i>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="w-full flex-grow min-h-[260px] md:min-h-[300px] relative">
+                    <div class="absolute top-0 bottom-0 pointer-events-none z-0" style="left:50%;width:1px;background:rgba(100,116,139,0.3);">
+                        <span class="absolute top-2 left-2 text-[10px] font-mono text-dim font-bold tracking-widest bg-white/80 px-1 rounded">AGORA</span>
+                    </div>
+                    <canvas id="predictionChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Manutenção Preditiva (RUL) -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                
+                <!-- Acidez do Óleo -->
+                <div class="glass rounded-xl p-6 relative overflow-hidden accent-top-violet">
+                    <div class="flex justify-between items-start mb-5">
+                        <div>
+                            <p class="text-[10px] text-dim font-mono uppercase tracking-widest mb-1 font-bold">Diagnóstico Químico</p>
+                            <h3 class="text-base font-display font-bold text-slate-900 tracking-wide">Acidez do Óleo Lubrificante</h3>
+                        </div>
+                        <div class="flex flex-col items-end gap-2">
+                            <span class="status-tag tag-cyan text-right">SNSR-ACD-04</span>
+                            <button class="btn-danger" onclick="app.injectDegradation('acid')"><i class="fa-solid fa-flask mr-1"></i> SIMULAR DESGASTE</button>
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-end mb-4">
+                        <div class="flex items-baseline gap-1.5">
+                            <span class="text-4xl font-display font-black text-slate-900 tracking-tight value-display" id="val-acid">0.05</span>
+                            <span class="text-sm font-mono text-dim font-bold">TAN</span>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-[10px] text-dim font-mono uppercase tracking-widest font-bold">Vida Útil (RUL)</p>
+                            <p class="text-xl font-mono font-bold text-emerald" id="rul-acid">Calculando...</p>
+                        </div>
+                    </div>
+                    <div class="rul-bar-track">
+                        <div class="absolute top-0 bottom-0 w-0.5 bg-red z-10" style="right: 10%;"></div>
+                        <div class="rul-bar-fill bg-emerald" id="bar-acid" style="width: 5%"></div>
+                        <div class="rul-bar-predicted" id="pred-acid" style="width: 95%"></div>
+                    </div>
+                </div>
+
+                <!-- Vibração -->
+                <div class="glass rounded-xl p-6 relative overflow-hidden accent-top-cyan">
+                    <div class="flex justify-between items-start mb-5">
+                        <div>
+                            <p class="text-[10px] text-dim font-mono uppercase tracking-widest mb-1 font-bold">Diagnóstico Mecânico</p>
+                            <h3 class="text-base font-display font-bold text-slate-900 tracking-wide">Vibração do Eixo (Global)</h3>
+                        </div>
+                        <div class="flex flex-col items-end gap-2">
+                            <span class="status-tag tag-cyan text-right">SNSR-VIB-01</span>
+                            <button class="btn-danger" onclick="app.injectDegradation('vib')"><i class="fa-solid fa-hammer mr-1"></i> SIMULAR FALHA</button>
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-end mb-4">
+                        <div class="flex items-baseline gap-1.5">
+                            <span class="text-4xl font-display font-black text-slate-900 tracking-tight value-display" id="val-vib">1.20</span>
+                            <span class="text-sm font-mono text-dim font-bold">mm/s</span>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-[10px] text-dim font-mono uppercase tracking-widest font-bold">Vida Útil (RUL)</p>
+                            <p class="text-xl font-mono font-bold text-emerald" id="rul-vib">Calculando...</p>
+                        </div>
+                    </div>
+                    <div class="rul-bar-track">
+                        <div class="absolute top-0 bottom-0 w-0.5 bg-red z-10" style="right: 15%;"></div>
+                        <div class="rul-bar-fill bg-cyan" id="bar-vib" style="width: 15%"></div>
+                        <div class="rul-bar-predicted" id="pred-vib" style="width: 85%"></div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+    </main>
+
+    <!-- ═══════════════════════════════════════
+         LÓGICA JAVASCRIPT (POO / MVC)
+         ═══════════════════════════════════════ -->
+    <script>
+        /**
+         * @class ThermodynamicEngine
+         * @description Modela a física do tanque utilizando a Lei de Arrefecimento de Newton.
+         */
+        class ThermodynamicEngine {
+            constructor() {
+                this.k = 0.005;         // Constante de transferência térmica (Inércia)
+                this.tAmbient = 25.0;   // Temperatura ambiente
+                this.pCoil = -0.3;      // Potência de arrefecimento da serpentina
+                this.pComp = -1.2;      // Potência de arrefecimento do compressor
+            }
+
+            step(currentTemp, coilOn, compOn, dt) {
+                let power = 0;
+                if (coilOn) power += this.pCoil;
+                if (compOn) power += this.pComp;
+
+                let dTdt = -this.k * (currentTemp - this.tAmbient) + power;
+                return currentTemp + (dTdt * dt);
+            }
+        }
+
+        /**
+         * @class DegradationModel
+         * @description Modela desgaste químico e mecânico não-linear.
+         */
+        class DegradationModel {
+            constructor() {
+                this.acidity = 0.05;
+                this.acidityLimit = 1.5;
+                this.acidityBaseRate = 0.0001;
+
+                this.vibration = 1.2;
+                this.vibrationLimit = 7.0;
+                this.vibrationBaseRate = 0.002;
+            }
+
+            step(compActive, dt) {
+                const compFactorA = compActive ? 1.5 : 1.0;
+                this.acidity += (this.acidityBaseRate * Math.exp(this.acidity) * compFactorA) * dt;
+
+                const compFactorV = compActive ? 2.5 : 0.5;
+                this.vibration = this.vibration * 0.95 + (compFactorV + Math.random() * 0.5) * 0.05;
+                this.vibration += (this.vibrationBaseRate * Math.exp(this.vibration / 2)) * dt;
+            }
+
+            inject(type) {
+                if (type === 'acid') this.acidity += 0.2;
+                if (type === 'vib') this.vibration += 1.0;
+            }
+        }
+
+        /**
+         * @class ActuatorController
+         * @description Lógica do Gêmeo Híbrido vs Termóstatos Simples.
+         * A grande sacada: Modos manuais possuem histerese (banda morta) enorme para simular variação gráfica.
+         */
+        class ActuatorController {
+            determineState(temp, setpoint, mode, currentCoil, currentComp) {
+                let error = temp - setpoint;
+                let coil = currentCoil;
+                let comp = currentComp;
+
+                switch (mode) {
+                    case 'auto':
+                        // Gêmeo Digital: Controle preciso e antecipativo (Banda morta muito curta)
+                        if (error > 1.5) { coil = true; comp = true; } // Emergência
+                        else if (error > 0.2) { coil = true; comp = false; } // Eco Mode
+                        else if (error < -0.2) { coil = false; comp = false; } // Atingiu o alvo
+                        break;
+                    case 'coil':
+                        // Termóstato Simples: Demora a ligar, demora a desligar (Gera ondas longas)
+                        comp = false;
+                        if (error > 3.0) coil = true;
+                        else if (error < -2.0) coil = false;
+                        break;
+                    case 'comp':
+                        // Termóstato Simples: Muita potência com banda morta gigante causa instabilidade severa
+                        coil = false;
+                        if (error > 4.5) comp = true;
+                        else if (error < -4.5) comp = false;
+                        break;
+                    case 'both':
+                        // Descontrole total (Overshoot massivo)
+                        if (error > 5.0) { coil = true; comp = true; }
+                        else if (error < -5.0) { coil = false; comp = false; }
+                        break;
+                }
+                return { coil, comp };
+            }
+        }
+
+        /**
+         * @class UIManager
+         */
+        class UIManager {
+            constructor() {
+                this.elements = {
+                    setpoint: document.getElementById('setpoint-display'),
+                    temp: document.getElementById('temp-realtime'),
+                    acid: document.getElementById('val-acid'),
+                    vib: document.getElementById('val-vib'),
+                    rulAcid: document.getElementById('rul-acid'),
+                    rulVib: document.getElementById('rul-vib'),
+                    clock: document.getElementById('clock'),
+                    date: document.getElementById('date')
+                };
+            }
+
+            updateValueWithAnim(element, newValue) {
+                if (element.innerText !== newValue) {
+                    element.classList.add('updating');
+                    setTimeout(() => {
+                        element.innerText = newValue;
+                        element.classList.remove('updating');
+                    }, 150); 
+                }
+            }
+
+            updateClock() {
+                const now = new Date();
+                this.elements.clock.innerText = now.toLocaleTimeString('pt-PT', { hour12: false });
+                this.elements.date.innerText = now.toISOString().split('T')[0];
+            }
+
+            updateActuators(coil, comp) {
+                const coilCard = document.getElementById('actuator-coil');
+                const compCard = document.getElementById('actuator-comp');
+                const txtCoil = document.getElementById('txt-coil');
+                const txtComp = document.getElementById('txt-comp');
+                const iconCoil = document.getElementById('icon-coil');
+                const iconComp = document.getElementById('icon-comp');
+                
+                if (coil) {
+                    coilCard.classList.add('active-coil');
+                    txtCoil.innerText = "ABERTA (100%)";
+                    txtCoil.classList.replace('text-slate-500', 'text-cyan');
+                    iconCoil.classList.replace('text-slate-300', 'text-cyan');
+                } else {
+                    coilCard.classList.remove('active-coil');
+                    txtCoil.innerText = "FECHADA";
+                    txtCoil.classList.replace('text-cyan', 'text-slate-500');
+                    iconCoil.classList.replace('text-cyan', 'text-slate-300');
+                }
+
+                if (comp) {
+                    compCard.classList.add('active-comp');
+                    txtComp.innerText = "EM CARGA";
+                    txtComp.classList.replace('text-slate-500', 'text-violet');
+                    iconComp.classList.add('fan-spinning', 'text-violet');
+                    iconComp.classList.remove('text-slate-300');
+                } else {
+                    compCard.classList.remove('active-comp');
+                    txtComp.innerText = "STANDBY";
+                    txtComp.classList.replace('text-violet', 'text-slate-500');
+                    iconComp.classList.remove('fan-spinning', 'text-violet');
+                    iconComp.classList.add('text-slate-300');
+                }
+            }
+
+            updateRUL(degradation, type) {
+                const limit = type === 'acid' ? 1.5 : 7.0;
+                const current = type === 'acid' ? degradation.acidity : degradation.vibration;
+                const barCurrent = document.getElementById(`bar-${type}`);
+                const barPred = document.getElementById(`pred-${type}`);
+                const rulText = this.elements[type === 'acid' ? 'rulAcid' : 'rulVib'];
+
+                let pct = Math.min(100, (current / limit) * 90); 
+                barCurrent.style.width = `${pct}%`;
+                barPred.style.width = `${100 - pct}%`;
+
+                if (current >= limit) {
+                    rulText.innerText = "FALHA CRÍTICA";
+                    rulText.className = "text-xl font-mono font-bold text-red";
+                    barCurrent.classList.replace(type === 'acid' ? 'bg-emerald' : 'bg-cyan', 'bg-red');
+                } else {
+                    let remaining = limit - current;
+                    let rate = type === 'acid' ? degradation.acidityBaseRate : degradation.vibrationBaseRate;
+                    let steps = remaining / (rate * 5); 
+                    
+                    if (steps > 1000) {
+                        rulText.innerText = "> 30 DIAS";
+                        rulText.className = "text-xl font-mono font-bold text-emerald";
+                    } else if (steps > 200) {
+                        rulText.innerText = `${Math.floor(steps/30)} DIAS`;
+                        rulText.className = "text-xl font-mono font-bold text-amber";
+                    } else {
+                        rulText.innerText = "IMINENTE";
+                        rulText.className = "text-xl font-mono font-bold text-red";
+                    }
+                }
+            }
+        }
+
+        /**
+         * @class ChartManager
+         */
+        class ChartManager {
+            constructor(ctx) {
+                this.historySize = 50; 
+                this.futureSize = 50;  
+                this.totalSize = this.historySize + this.futureSize;
+                
+                this.labels = Array.from({length: this.totalSize}, (_, i) => i - this.historySize);
+                this.historyData = Array(this.totalSize).fill(null);
+                this.futureData = Array(this.totalSize).fill(null);
+                this.setpointData = Array(this.totalSize).fill(15.0);
+
+                Chart.defaults.color = '#64748B';
+                Chart.defaults.font.family = "'Fira Code', monospace";
+
+                const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+                gradient.addColorStop(0, 'rgba(2, 132, 199, 0.2)'); // Light Blue
+                gradient.addColorStop(1, 'rgba(2, 132, 199, 0.0)');
+
+                this.chart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: this.labels,
+                        datasets: [
+                            {
+                                label: 'Real', data: this.historyData,
+                                borderColor: '#0284C7', backgroundColor: gradient,
+                                borderWidth: 2.5, fill: true, pointRadius: 0, tension: 0.3
+                            },
+                            {
+                                label: 'Projeção IA', data: this.futureData,
+                                borderColor: '#6366F1', borderWidth: 2.5, borderDash: [4, 4],
+                                fill: false, pointRadius: 0, tension: 0.3
+                            },
+                            {
+                                label: 'Setpoint', data: this.setpointData,
+                                borderColor: '#10B981', borderWidth: 1.5, borderDash: [2, 2],
+                                pointRadius: 0
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        animation: false, 
+                        interaction: { intersect: false, mode: 'index' },
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            y: { min: 0, max: 35, grid: { color: '#E2E8F0' } },
+                            x: { 
+                                grid: { color: (c) => c.tick.value === 0 ? '#94A3B8' : 'transparent', lineWidth: (c) => c.tick.value === 0 ? 1 : 0 },
+                                ticks: { display: false } 
+                            }
+                        }
+                    }
+                });
+            }
+
+            update(temp, setpoint, futurePredictionArr) {
+                this.historyData.shift();
+                this.historyData[this.historySize - 1] = temp;
+                this.historyData[this.historySize] = null; 
+
+                this.setpointData.fill(setpoint);
+
+                this.futureData.fill(null);
+                this.futureData[this.historySize - 1] = temp; 
+                for(let i=0; i<this.futureSize; i++) {
+                    this.futureData[this.historySize + i] = futurePredictionArr[i];
+                }
+
+                this.chart.update();
+            }
+        }
+
+        /**
+         * @class MainApp
+         */
+        class MainApp {
+            constructor() {
+                this.state = {
+                    setpoint: 15.0,
+                    temp: 25.0,
+                    mode: 'auto',
+                    coilActive: false,
+                    compActive: false
+                };
+
+                this.physics = new ThermodynamicEngine();
+                this.degradation = new DegradationModel();
+                this.controller = new ActuatorController();
+                this.ui = new UIManager();
+                this.chart = new ChartManager(document.getElementById('predictionChart').getContext('2d'));
+
+                this.lastTime = performance.now();
+                this.physicsTickRate = 1000; 
+                this.accumulator = 0;
+
+                for(let i=0; i<this.chart.historySize; i++) {
+                    this.chart.historyData[i] = this.state.temp;
+                }
+
+                requestAnimationFrame((t) => this.loop(t));
+                setInterval(() => this.ui.updateClock(), 1000);
+            }
+
+            changeSetpoint(delta) {
+                this.state.setpoint = Math.max(5, Math.min(35, this.state.setpoint + delta));
+                this.ui.updateValueWithAnim(this.ui.elements.setpoint, this.state.setpoint.toFixed(1));
+            }
+
+            setMode(newMode) {
+                this.state.mode = newMode;
+                document.getElementById('header-mode').innerText = 
+                    newMode === 'auto' ? 'HÍBRIDO' : newMode === 'coil' ? 'PASSIVO' : newMode === 'comp' ? 'ATIVO' : 'SOBRECARGA';
+            }
+
+            injectDegradation(type) {
+                this.degradation.inject(type);
+            }
+
+            predictFuture() {
+                let prediction = [];
+                let simTemp = this.state.temp;
+                let simCoil = this.state.coilActive;
+                let simComp = this.state.compActive;
+                let dt = 1.0; 
+                
+                for(let i=0; i < this.chart.futureSize; i++) {
+                    let simActs = this.controller.determineState(simTemp, this.state.setpoint, this.state.mode, simCoil, simComp);
+                    simCoil = simActs.coil;
+                    simComp = simActs.comp;
+                    simTemp = this.physics.step(simTemp, simCoil, simComp, dt);
+                    prediction.push(simTemp);
+                }
+                return prediction;
+            }
+
+            loop(currentTime) {
+                let deltaTime = currentTime - this.lastTime;
+                this.lastTime = currentTime;
+                this.accumulator += deltaTime;
+
+                if (this.accumulator >= this.physicsTickRate / 10) { 
+                    this.accumulator = 0;
+                    let dt = 0.1; 
+
+                    const acts = this.controller.determineState(this.state.temp, this.state.setpoint, this.state.mode, this.state.coilActive, this.state.compActive);
+                    this.state.coilActive = acts.coil;
+                    this.state.compActive = acts.comp;
+
+                    this.state.temp = this.physics.step(this.state.temp, this.state.coilActive, this.state.compActive, dt);
+                    let sensorTemp = this.state.temp + (Math.random() * 0.04 - 0.02);
+
+                    this.degradation.step(this.state.compActive, dt);
+
+                    const futurePrediction = this.predictFuture();
+
+                    this.ui.updateValueWithAnim(this.ui.elements.temp, sensorTemp.toFixed(2));
+                    this.ui.elements.acid.innerText = this.degradation.acidity.toFixed(3);
+                    this.ui.elements.vib.innerText = this.degradation.vibration.toFixed(2);
+                    
+                    this.ui.updateActuators(this.state.coilActive, this.state.compActive);
+                    this.ui.updateRUL(this.degradation, 'acid');
+                    this.ui.updateRUL(this.degradation, 'vib');
+
+                    this.chart.update(sensorTemp, this.state.setpoint, futurePrediction);
+                }
+
+                requestAnimationFrame((t) => this.loop(t));
+            }
+        }
+
+        window.onload = () => {
+            window.app = new MainApp();
+            document.getElementById('date').innerText = new Date().toISOString().split('T')[0];
+        };
+    </script>
+</body>
+</html>
